@@ -138,7 +138,7 @@ if __name__ == '__main__':
     # Run over everything
     cerebro.run()
     
+    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
     cerebro.plot()
 
     # Print out the final result
-    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())

@@ -66,7 +66,7 @@ class CrossStrategies(bt.Strategy):
     def buy_signal(self):
         signal = False
         if self.small_sma[-1] and self.long_sma[-1]:
-            signal = (self.long_sma[-1] > self.small_sma[-1]) and (self.small_sma[0] > self.long_sma[0])
+            signal = (self.long_sma[-1] > self.small_sma[-1]) and (self.small_sma[0] >= self.long_sma[0])
         return signal
     
     def sell_signal(self):
@@ -86,7 +86,7 @@ class CrossStrategies(bt.Strategy):
             ##No tenemos instrumento podriamos comprar
             if self.sell_signal():
                 self.log("Creada orden de venta, {}".format(self.dataclose[0]))
-                self.sell()
+                self.order = self.sell()
                 
 if __name__ == '__main__':
     # Create a cerebro entity
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     # Datas are in a subfolder of the samples. Need to find where the script is
     # because it could have been called from anywhere
     modpath = os.path.dirname(os.path.abspath(sys.argv[0]))
-    datapath = os.path.join(modpath, '../TSLA.csv')
+    datapath = os.path.join(modpath, '../DATA FEEDS/orcl-1995-2014.csv')
 
     # Create a Data Feed
     data = bt.feeds.YahooFinanceCSVData(
@@ -112,6 +112,7 @@ if __name__ == '__main__':
     # Set our desired cash start
     cerebro.broker.setcash(1000.0)
 
+    cerebro.addsizer(bt.sizers.PercentSizer, percents= 50)
 
     # Set the commission
     cerebro.broker.setcommission(commission=0.1)

@@ -11,9 +11,6 @@ import backtrader as bt
 
 # Create a Stratey
 class TestStrategy(bt.Strategy):
-    params = (
-        ('maperiod', 15),
-    )
 
     def log(self, txt, dt=None):
         ''' Logging function fot this strategy'''
@@ -31,7 +28,11 @@ class TestStrategy(bt.Strategy):
 
         # Add a MovingAverageSimple indicator
         self.sma = bt.indicators.SimpleMovingAverage(
-            self.datas[0], period=self.params.maperiod)
+            self.data0, period=200)
+        self.boll = bt.indicators.BollingerBands(
+            self.data0, period=20, devfactor=2.5
+        )
+        self.rsi= bt.indicators.RSI(self.data0, period=50, safediv=True)
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -81,18 +82,17 @@ class TestStrategy(bt.Strategy):
         # Check if we are in the market
         if not self.position:
 
-            # Not yet ... we MIGHT BUY if ...
-            if self.dataclose[0] > self.sma[0]:
+            if self.data.close > self.sma[0] and self.data.close < self.boll.lines.bot:
 
                 # BUY, BUY, BUY!!! (with all possible default parameters)
                 self.log('BUY CREATE, %.2f' % self.dataclose[0])
 
                 # Keep track of the created order to avoid a 2nd order
-                self.order = self.buy()
+                self.order = self.buy(exectype= bt.Order.Limit, price = 0.97*self.dataclose[0])
 
         else:
 
-            if self.dataclose[0] < self.sma[0]:
+            if self.rsi > 50 or len(self) >= (self.bar_executed + 10):
                 # SELL, SELL, SELL!!! (with all possible default parameters)
                 self.log('SELL CREATE, %.2f' % self.dataclose[0])
 
@@ -104,35 +104,33 @@ if __name__ == '__main__':
     # Create a cerebro entity
     cerebro = bt.Cerebro()
 
+    initial_cash = 10000
+    
     # Add a strategy
     cerebro.addstrategy(TestStrategy)
 
     # Datas are in a subfolder of the samples. Need to find where the script is
     # because it could have been called from anywhere
     modpath = os.path.dirname(os.path.abspath(sys.argv[0]))
-    datapath = os.path.join(modpath, '../DATA FEEDS/AAPL.csv')
+    datapath = os.path.join(modpath, '../DATA FEEDS/orcl-1995-2014.csv')
 
     # Create a Data Feed
     data = bt.feeds.YahooFinanceCSVData(
         dataname=datapath,
-        # Do not pass values before this date
-        fromdate=datetime.datetime(2023, 1, 1),
-        # Do not pass values before this date
-        todate=datetime.datetime(2023, 12, 31),
-        # Do not pass values after this date
+
         reverse=False)
 
     # Add the Data Feed to Cerebro
     cerebro.adddata(data)
 
     # Set our desired cash start
-    cerebro.broker.setcash(1000.0)
+    cerebro.broker.setcash(initial_cash)
 
 
     # Set the commission
-    cerebro.broker.setcommission(commission=0.01)
+    cerebro.broker.setcommission(commission=0.001)
     
-    cerebro.addsizer(bt.sizers.PercentSizer, percents= 50)
+    cerebro.addsizer(bt.sizers.PercentSizer, percents= 60)
 
     # Print out the starting conditions
     print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
@@ -141,6 +139,7 @@ if __name__ == '__main__':
     cerebro.run()
     
     print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
+    print('Profit percentage: {percentage}%'.format(percentage = cerebro.broker.getvalue()/initial_cash))
     cerebro.plot()
 
     # Print out the final result

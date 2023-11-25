@@ -6,8 +6,8 @@ import sys
 class GraficarMACD(bt.Strategy):
     params =(
         ('macd_period1', 12),
-        ('macd_period2', 26),
-        ('macd_sigperiod', 9),
+        ('macd_period2', 9),
+        ('macd_sigperiod', 26),
         ('small_period', 50),
         ('long_period', 200)
     )
@@ -18,10 +18,10 @@ class GraficarMACD(bt.Strategy):
     
     def __init__(self):
         self.dataclose = self.data0.close
+        
         self.macd = bt.indicators.MACD(
             self.data0,
             period_me1=self.params.macd_period1,
-            period_me2=self.params.macd_period2,
             period_signal=self.params.macd_sigperiod)
         
         self.rsi_inf = bt.indicators.RSI(self.data0)
@@ -69,17 +69,17 @@ class GraficarMACD(bt.Strategy):
 
         self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' %
                  (trade.pnl, trade.pnlcomm))
-      
+     ##Controlando que el valor del MACD sea menor a 0 en la compra y mayor a 0 en la venta los resultados muestran profit con menos trades negativos 
     def buy_signal(self):
         signal = False
         if self.small_sma[-1] and self.long_sma[-1]:
-            signal= (self.cross_ind == 1 or ((self.long_sma[-1] > self.small_sma[-1]) and (self.small_sma[0] > self.long_sma[0])) and self.rsi_inf >= 70)
+            signal= ((self.cross_ind == 1 and self.macd < 0) or ((self.long_sma[-1] > self.small_sma[-1]) and (self.small_sma[0] > self.long_sma[0]))and self.rsi_inf[0] >= 70)
         return signal
     
     def sell_signal(self):
         signal = False
         if self.small_sma[-1] and self.long_sma[-1]:
-            signal= ((self.cross_ind == -1 or ((self.long_sma[-1] < self.small_sma[-1]) and (self.small_sma[0] < self.long_sma[0]))) and self.rsi_inf <= 30)
+            signal= (((self.cross_ind == -1 and self.macd > 0) or ((self.long_sma[-1] < self.small_sma[-1]) and (self.small_sma[0] < self.long_sma[0]))) and self.rsi_inf[0] <= 30)
         return signal
             
     def next(self):
@@ -93,11 +93,12 @@ class GraficarMACD(bt.Strategy):
             ##No tenemos instrumento podriamos comprar
             if self.sell_signal():
                 self.log("Creada orden de venta, {}".format(self.dataclose[0]))
-                self.sell()
+                self.order = self.sell()
 
 if __name__ == '__main__':
     # Create a cerebro entity
     cerebro = bt.Cerebro()
+    initial_cash= 10000
 
     # Add a strategy
     cerebro.addstrategy(GraficarMACD)
@@ -105,7 +106,7 @@ if __name__ == '__main__':
     # Datas are in a subfolder of the samples. Need to find where the script is
     # because it could have been called from anywhere
     modpath = os.path.dirname(os.path.abspath(sys.argv[0]))
-    datapath = os.path.join(modpath, '../DATA FEEDS/AAPL.csv')
+    datapath = os.path.join(modpath, '../DATA FEEDS/orcl-1995-2014.csv')
 
     # Create a Data Feed
     data = bt.feeds.YahooFinanceCSVData(
@@ -117,11 +118,12 @@ if __name__ == '__main__':
     cerebro.adddata(data)
 
     # Set our desired cash start
-    cerebro.broker.setcash(1000.0)
-
+    cerebro.broker.setcash(initial_cash)
 
     # Set the commission
-    cerebro.broker.setcommission(commission=0.1)
+    cerebro.broker.setcommission(commission=0.001)
+    
+    cerebro.addsizer(bt.sizers.PercentSizer, percents= 50)
 
     # Print out the starting conditions
     print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
@@ -129,7 +131,10 @@ if __name__ == '__main__':
     # Run over everything
     cerebro.run()
     
-    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
-    cerebro.plot()
-
     # Print out the final result
+    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
+    print('Final Cash Value: %.2f' % cerebro.broker.getcash())
+    print('Portfolio profit percentage: {percentage}%'.format(percentage = ((cerebro.broker.getvalue()*100)-initial_cash)/initial_cash))
+    print('Only cash profit percentage: {percentage}%'.format(percentage = ((cerebro.broker.getcash()*100)-initial_cash)/initial_cash))
+    print('Yearly profit rate: {}%'.format((((cerebro.broker.getcash()*100)-initial_cash)/initial_cash)/20))
+    cerebro.plot()

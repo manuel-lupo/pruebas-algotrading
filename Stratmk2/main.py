@@ -101,7 +101,7 @@ if __name__ == '__main__':
     # Create a cerebro entity
     cerebro = bt.Cerebro()
 
-    initial_cash = 1000
+    initial_cash = 10000
     
     # Add a strategy
     cerebro.addstrategy(Stratmk2)

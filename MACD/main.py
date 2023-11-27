@@ -2,6 +2,7 @@ import os.path
 import backtrader as bt
 import datetime
 import sys
+import mplfinance as mpf
 
 class GraficarMACD(bt.Strategy):
     params =(
@@ -123,7 +124,7 @@ if __name__ == '__main__':
     # Set the commission
     cerebro.broker.setcommission(commission=0.001)
     
-    cerebro.addsizer(bt.sizers.PercentSizer, percents= 50)
+    cerebro.addsizer(bt.sizers.PercentSizer, percents= 60)
 
     # Print out the starting conditions
     print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())

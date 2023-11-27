@@ -29,6 +29,10 @@ class CrossStrategies(bt.Strategy):
         self.small_sma = bt.indicators.SimpleMovingAverage(
             self.data0, period=self.params.small_period
         )
+        
+        self.rsi =  bt.indicators.RelativeStrengthIndex(
+            self.data0, period= 2
+        )
     
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -66,13 +70,13 @@ class CrossStrategies(bt.Strategy):
     def buy_signal(self):
         signal = False
         if self.small_sma[-1] and self.long_sma[-1]:
-            signal = (self.long_sma[-1] > self.small_sma[-1]) and (self.small_sma[0] >= self.long_sma[0])
+            signal = (self.long_sma[-1] > self.small_sma[-1]) and (self.small_sma[0] >= self.long_sma[0]) and self.rsi <= 30
         return signal
     
     def sell_signal(self):
         signal = False
         if self.small_sma[-1] and self.long_sma[-1]:
-            signal = (self.small_sma[-1] > self.long_sma[-1]) and (self.long_sma[0] > self.small_sma[0])
+            signal = (self.small_sma[-1] > self.long_sma[-1]) and (self.long_sma[0] > self.small_sma[0]) and self.rsi >= 70
         return signal
             
     def next(self):

@@ -21,7 +21,8 @@ class Stratmk2(bt.Strategy):
 
     def __init__(self):
         self.boll_band = bt.ind.BollingerBands(self.data0, period= 30, devfactor=2)
-        self.rsi = bt.indicators.RSI(self.data0, period=13)
+        self.rsi = bt.indicators.RSI(self.data0, period=12)
+        self.wma = bt.indicators.SimpleMovingAverage(self.data0, period = 16)
         self.order = None
 
     def notify_order(self, order):
@@ -63,25 +64,27 @@ class Stratmk2(bt.Strategy):
 
     def buy_signal(self):
         isBuy=False
-        isBuy = (self.data0.close[0] < self.boll_band.bot) and self.rsi <= 25
+        isBuy = (self.data0.close[0] < self.boll_band.bot) and self.rsi <= 35 and self.data0.close < self.wma
         return isBuy
-    
     def sell_signal(self):
         isSell = False
-        if self.data0.close[0] >= self.boll_band.mid:
-            isSell = xor(self.rsi_aum(self) , (self.data0.close[0] >= self.boll_band.top and self.rsi > 70))
+        isSell = (self.data0.close[0] >= self.boll_band.top and self.rsi > 75) and (self.data0.close >= self.wma)
         return isSell
-    
-    def rsi_aum(self, period = 5):
-        return self.rsi < self.rsi
+   
+
+   #def sell_signal(self):
+   #    isSell = False
+   #    if self.data0.close[0] >= self.boll_band.mid:
+   #        isSell = xor(self.rsi_aum() , (self.data0.close[0] >= self.boll_band.top and self.rsi > 75)) and self.data0.close >= self.wma
+   #    return isSell
+   #
+   #def rsi_aum(self, period = 5):
+   #    return self.rsi < self.rsi
             
-    
-     
            
     def next(self):
         # Simply log the closing price of the series from the reference
         self.log('Close, %.2f' % self.data0.close[0])
-
         # Check if an order is pending ... if yes, we cannot send a 2nd one
         if self.order:
             return
@@ -127,7 +130,7 @@ if __name__ == '__main__':
     # Set the commission
     cerebro.broker.setcommission(commission=0.001)
     
-    cerebro.addsizer(bt.sizers.PercentSizer, percents= 60)
+    cerebro.addsizer(bt.sizers.PercentSizer, percents=60)
 
     # Print out the starting conditions
     print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())

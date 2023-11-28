@@ -2,13 +2,12 @@ import os.path
 import backtrader as bt
 import datetime
 import sys
-import mplfinance as mpf
 
 class GraficarMACD(bt.Strategy):
     params =(
         ('macd_period1', 12),
         ('macd_period2', 9),
-        ('macd_sigperiod', 26),
+        ('macd_sigperiod', 14),
         ('small_period', 50),
         ('long_period', 200)
     )

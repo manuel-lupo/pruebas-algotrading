@@ -22,7 +22,7 @@ class Stratmk2(bt.Strategy):
     def __init__(self):
         self.boll_band = bt.ind.BollingerBands(self.data0, period= 30, devfactor=2)
         self.rsi = bt.indicators.RSI(self.data0, period=12)
-        self.wma = bt.indicators.SimpleMovingAverage(self.data0, period = 16)
+        self.sma = bt.indicators.SimpleMovingAverage(self.data0, period = 16)
         self.order = None
 
     def notify_order(self, order):
@@ -64,31 +64,53 @@ class Stratmk2(bt.Strategy):
 
     def buy_signal(self):
         isBuy=False
-        isBuy = (self.data0.close[0] < self.boll_band.bot) and self.rsi <= 35 and self.data0.close < self.wma
+        isBuy = ((self.boll_band_hold_buy()) or (self.rsi <= 45)) and self.data0.close < self.sma
         return isBuy
     def sell_signal(self):
         isSell = False
-        isSell = (self.data0.close[0] >= self.boll_band.top and self.rsi > 75) and (self.data0.close >= self.wma)
+        if self.data0.close >= self.boll_band.bot:
+            isSell =  (((self.boll_band_hold_sell() and self.rsi >= 74) or ((self.data0.close > self.boll_band.top) and (self.rsi_cross_down() and self.rsi >= 75))) or self.rsi <= 40) and (self.data0.close >= self.sma)
         return isSell
    
-
-   #def sell_signal(self):
-   #    isSell = False
-   #    if self.data0.close[0] >= self.boll_band.mid:
-   #        isSell = xor(self.rsi_aum() , (self.data0.close[0] >= self.boll_band.top and self.rsi > 75)) and self.data0.close >= self.wma
-   #    return isSell
-   #
-   #def rsi_aum(self, period = 5):
-   #    return self.rsi < self.rsi
-            
-           
+    #FUNCIONES IMPLEMENTADAS EN BASE A LOS INDICADORES
+    
+    #esta funcion detecta una caida en el rsi al dia de hoy, cruzando por debajo del 75%
+    #intentamos predecir una caida en el precio de la accion por medio del rsi, por lo que el bot debera vender antes de que baje aun mas
+    #problema ante falsas señales bajistas
+    
+    def rsi_cross_down(self, treshold=75):
+        flag=False
+        if (self.rsi[-1] > treshold):
+            flag= self.rsi[0] < treshold
+        return flag     
+    
+    #esta funcion aplica para la venta, devuelve true si el precio de cierre se mantuvo por arriba del top de la banda de bollinger durantes 3 dias
+    #al mantenerse el precio de cierre por arriba del top, intentamos predecir tendencias alcistas y vender lo mas caro posible
+    #no funciona correctamente en caso de que el precio siga aumentando los dias siguientes
+    
+    def boll_band_hold_sell(self, period=3):
+        flag=True
+        for i in range(period):
+            flag= self.data0.close[-i] > self.boll_band.top[-i]
+            if not flag:
+                break   
+        return flag
+    
+    def boll_band_hold_buy(self, period=3):
+        flag=True
+        for i in range(period):
+            flag= self.data0.close[-i] < self.boll_band.top[-i]
+            if not flag:
+                break   
+        return flag
+               
     def next(self):
         # Simply log the closing price of the series from the reference
         self.log('Close, %.2f' % self.data0.close[0])
         # Check if an order is pending ... if yes, we cannot send a 2nd one
         if self.order:
             return
-
+        print(self.rsi[-1])
         # Check if we are in the market
         if not self.position:
             if self.buy_signal():

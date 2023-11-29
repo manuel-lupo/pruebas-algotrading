@@ -21,8 +21,7 @@ class GraficarMACD(bt.Strategy):
         
         self.macd = bt.indicators.MACD(
             self.data0,
-            period_me1=self.params.macd_period1,
-            period_signal=self.params.macd_sigperiod)
+            )
         
         self.rsi_inf = bt.indicators.RSI(self.data0)
         
@@ -73,7 +72,7 @@ class GraficarMACD(bt.Strategy):
     def buy_signal(self):
         signal = False
         if self.small_sma[-1] and self.long_sma[-1]:
-            signal= ((self.cross_ind == 1 and self.macd < 0) or ((self.long_sma[-1] > self.small_sma[-1]) and (self.small_sma[0] > self.long_sma[0]))and self.rsi_inf[0] >= 70)
+            signal= ((self.cross_ind == 1 and self.macd < 0) and self.rsi_inf[0] >= 80)
         return signal
     
     def sell_signal(self):

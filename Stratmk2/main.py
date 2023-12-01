@@ -14,7 +14,7 @@ def xor(a, b):
 # Create a Stratey
 class Stratmk2(bt.Strategy):
     params = (
-        ('small_period', 30),
+        ('small_period', 50),
         ('long_period', 200)
     )
 

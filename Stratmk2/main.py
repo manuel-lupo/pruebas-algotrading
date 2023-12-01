@@ -13,6 +13,10 @@ def xor(a, b):
 
 # Create a Stratey
 class Stratmk2(bt.Strategy):
+    params = (
+        ('small_period', 30),
+        ('long_period', 200)
+    )
 
     def log(self, txt, dt=None):
         ''' Logging function fot this strategy'''
@@ -22,7 +26,13 @@ class Stratmk2(bt.Strategy):
     def __init__(self):
         self.boll_band = bt.ind.BollingerBands(self.data0, period= 30, devfactor=2)
         self.rsi = bt.indicators.RSI(self.data0, period=12)
-        self.sma = bt.indicators.SimpleMovingAverage(self.data0, period = 16)
+        self.long_sma = bt.indicators.SimpleMovingAverage(
+            self.data0, period=self.params.long_period
+        )
+        self.small_sma = bt.indicators.SimpleMovingAverage(
+            self.data0, period=self.params.small_period
+        )
+        self.crossover = bt.indicators.CrossOver(self.long_sma, self.small_sma)
         self.order = None
 
     def notify_order(self, order):
@@ -64,12 +74,11 @@ class Stratmk2(bt.Strategy):
 
     def buy_signal(self):
         isBuy=False
-        isBuy = ((self.boll_band_hold_buy()) or (self.rsi <= 45)) and self.data0.close < self.sma
+        isBuy = ((self.crossover == -1) or (self.data0.close < self.boll_band.bot)) and ((self.rsi <= 30) or (self.long_sma < self.boll_band.mid)) 
         return isBuy
     def sell_signal(self):
         isSell = False
-        if self.data0.close >= self.boll_band.bot:
-            isSell =  (((self.boll_band_hold_sell() and self.rsi >= 74) or ((self.data0.close > self.boll_band.top) and (self.rsi_cross_down() and self.rsi >= 75))) or self.rsi <= 40) and (self.data0.close >= self.sma)
+        isSell = ((self.crossover == 1) or (self.data0.close > self.boll_band.top)) and ((self.rsi >= 75) or (self.boll_band_hold_sell()) or (self.long_sma > self.boll_band.top))
         return isSell
    
     #FUNCIONES IMPLEMENTADAS EN BASE A LOS INDICADORES
@@ -87,8 +96,8 @@ class Stratmk2(bt.Strategy):
     #esta funcion aplica para la venta, devuelve true si el precio de cierre se mantuvo por arriba del top de la banda de bollinger durantes 3 dias
     #al mantenerse el precio de cierre por arriba del top, intentamos predecir tendencias alcistas y vender lo mas caro posible
     #no funciona correctamente en caso de que el precio siga aumentando los dias siguientes
-    
-    def boll_band_hold_sell(self, period=3):
+
+    def boll_band_hold_sell(self, period=2):
         flag=True
         for i in range(period):
             flag= self.data0.close[-i] > self.boll_band.top[-i]
@@ -96,10 +105,10 @@ class Stratmk2(bt.Strategy):
                 break   
         return flag
     
-    def boll_band_hold_buy(self, period=3):
+    def boll_band_hold_buy(self, period=2):
         flag=True
         for i in range(period):
-            flag= self.data0.close[-i] < self.boll_band.top[-i]
+            flag= self.data0.close[-i] < self.boll_band.bot[-i]
             if not flag:
                 break   
         return flag
@@ -152,7 +161,7 @@ if __name__ == '__main__':
     # Set the commission
     cerebro.broker.setcommission(commission=0.001)
     
-    cerebro.addsizer(bt.sizers.PercentSizer, percents=60)
+    cerebro.addsizer(bt.sizers.PercentSizer, percents=35)
 
     # Print out the starting conditions
     print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
@@ -160,8 +169,10 @@ if __name__ == '__main__':
     # Run over everything
     cerebro.run()
     
+    
     print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
-    print('Profit percentage: {percentage}%'.format(percentage = cerebro.broker.getvalue()/initial_cash))
+    print('Final Cash Value: %.2f' % cerebro.broker.getcash())
+ 
     cerebro.plot()
 
     # Print out the final result

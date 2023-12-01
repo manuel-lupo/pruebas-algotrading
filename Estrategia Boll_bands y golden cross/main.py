@@ -8,8 +8,16 @@ import sys  # To find out the script name (in argv[0])
 # Import the backtrader platform
 import backtrader as bt
 
+def xor(a, b):
+    return (a and not b) or (not a and b)
+
 # Create a Stratey
-class Strat(bt.Strategy):
+class Strat_Boll_GC(bt.Strategy):
+    params = (
+        ('small_period', 50),
+        ('long_period', 200),
+        ('stop_loss', 0.5)
+    )
 
     def log(self, txt, dt=None):
         ''' Logging function fot this strategy'''
@@ -17,8 +25,15 @@ class Strat(bt.Strategy):
         print('%s, %s' % (dt.isoformat(), txt))
 
     def __init__(self):
-        self.stoch = bt.indicators.Stochastic(self.data0)
-        self.sma = bt.indicators.SMA(self.data0, period=200)
+        self.boll_band = bt.ind.BollingerBands(self.data0, period= 30, devfactor=2)
+        self.rsi = bt.indicators.RSI(self.data0, period=12)
+        self.long_sma = bt.indicators.SimpleMovingAverage(
+            self.data0, period=self.params.long_period
+        )
+        self.small_sma = bt.indicators.SimpleMovingAverage(
+            self.data0, period=self.params.small_period
+        )
+        self.crossover = bt.indicators.CrossOver(self.long_sma, self.small_sma)
         self.order = None
 
     def notify_order(self, order):
@@ -60,46 +75,59 @@ class Strat(bt.Strategy):
 
     def buy_signal(self):
         isBuy=False
-        if self.llevaAlcista(3) and (self.stoch.k[len(self) - 1] < self.stoch.d[len(self) - 1] and self.stoch.k[len(self)] >= self.stoch.d[len(self)]):
-            isBuy = True
+        isBuy = (((self.crossover == -1) or (self.data0.close < self.boll_band.bot)) and ((self.rsi <= 30) or (self.long_sma < self.boll_band.bot))) and not ((self.rsi < 60 and self.rsi > 40))
         return isBuy
-    
     def sell_signal(self):
-        isSell = False
-        if self.llevaBajista(1) and (self.stoch.k[len(self) - 1] > self.stoch.d[len(self) - 1] and self.stoch.k[len(self)] <= self.stoch.d[len(self)]):
-            isSell = True
+        isSell = (self.data0.close <= self.buyprice * self.params.stop_loss)
+        if not isSell:
+            isSell = ((self.crossover == 1) or (self.data0.close > self.boll_band.top)) and ((self.rsi >= 75) or (self.boll_band_hold_sell()) or (self.long_sma > self.boll_band.top)) and self.data0.close > self.buyprice
         return isSell
+   
+    #FUNCIONES IMPLEMENTADAS EN BASE A LOS INDICADORES
     
-            
-    def llevaAlcista(self, dias = 3):
-        flag = True
-        for i in range(dias):
-            flag = self.data0.close[i - dias] > self.sma[i- dias]
-            if not flag: break
-        return flag   
+    #esta funcion detecta una caida en el rsi al dia de hoy, cruzando por debajo del 75%
+    #intentamos predecir una caida en el precio de la accion por medio del rsi, por lo que el bot debera vender antes de que baje aun mas
+    #problema ante falsas señales bajistas
     
-    def llevaBajista(self, dias = 3):
-        flag = True
-        for i in range(dias):
-            flag = self.data0.close[i - dias] < self.sma[i- dias]
-            if not flag: break
-        return flag         
-     
-           
+    def rsi_cross_down(self, treshold=75):
+        flag=False
+        if (self.rsi[-1] > treshold):
+            flag= self.rsi[0] < treshold
+        return flag     
+    
+    #esta funcion aplica para la venta, devuelve true si el precio de cierre se mantuvo por arriba del top de la banda de bollinger durantes 3 dias
+    #al mantenerse el precio de cierre por arriba del top, intentamos predecir tendencias alcistas y vender lo mas caro posible
+    #no funciona correctamente en caso de que el precio siga aumentando los dias siguientes
+
+    def boll_band_hold_sell(self, period=2):
+        flag=True
+        for i in range(period):
+            flag= self.data0.close[-i] > self.boll_band.top[-i]
+            if not flag:
+                break   
+        return flag
+    
+    def boll_band_hold_buy(self, period=2):
+        flag=True
+        for i in range(period):
+            flag= self.data0.close[-i] < self.boll_band.bot[-i]
+            if not flag:
+                break   
+        return flag
+               
     def next(self):
         # Simply log the closing price of the series from the reference
         self.log('Close, %.2f' % self.data0.close[0])
-        
-        
         # Check if an order is pending ... if yes, we cannot send a 2nd one
         if self.order:
             return
-        print(f"Linea k: {self.stoch.k[len(self)]}, Linea d: {self.stoch.d[len(self)]}")
+        print(self.rsi[-1])
         # Check if we are in the market
         if not self.position:
             if self.buy_signal():
                 self.order = self.buy()
-        elif self.sell_signal():
+        else:
+            if self.sell_signal():
                 self.order = self.sell()
 
         
@@ -112,7 +140,7 @@ if __name__ == '__main__':
     initial_cash = 10000
     
     # Add a strategy
-    cerebro.addstrategy(Strat)
+    cerebro.addstrategy(Strat_Boll_GC)
 
     # Datas are in a subfolder of the samples. Need to find where the script is
     # because it could have been called from anywhere
@@ -135,17 +163,33 @@ if __name__ == '__main__':
     # Set the commission
     cerebro.broker.setcommission(commission=0.001)
     
-    cerebro.addsizer(bt.sizers.PercentSizer, percents= 60)
+    cerebro.addsizer(bt.sizers.PercentSizer, percents=95)
+        
+    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trades')
+    cerebro.addanalyzer(bt.analyzers.SharpeRatio_A, _name='sharpe')
+    cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name='returns')
+    
 
     # Print out the starting conditions
     print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
 
-    # Run over everything
-    cerebro.run()
+       # Run over everything
+    results = cerebro.run()
+    
+    trade_an = results[0].analyzers.trades.get_analysis()
+    sharpe_an = results[0].analyzers.sharpe.get_analysis()
+    return_an = results[0].analyzers.returns.get_analysis()
+    
+
+    
+    average_return = (cerebro.broker.getvalue()*100)/initial_cash
+    winrate = (trade_an.won.total*100)/trade_an.total.total
     
     print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
-    print('Profit percentage: {percentage}%'.format(percentage = cerebro.broker.getvalue()/initial_cash))
-    cerebro.plot()
+    print('Winrate: {}'.format(winrate))
+    print('Sharpe Ratio: %.2f' % sharpe_an.get("sharperatio"))
+    print('Profit percentage: {percentage}%'.format(percentage = (average_return)))
+    cerebro.plot(style='candle', barup='lightgreen', bardown='red')
 
     # Print out the final result
     
